@@ -76,6 +76,18 @@ services:
       - ./hive/conf/core-site.xml:/opt/hive/conf/core-site.xml:ro
       - ./hive/conf/metastore-site.xml:/opt/hive/conf/metastore-site.xml:ro
 
+  spark:
+    image: bitnamilegacy/spark:3.5
+    container_name: spark
+    restart: unless-stopped
+    environment:
+      SPARK_MODE: master
+    depends_on:
+      - minio
+    volumes:
+      - ./spark/apps:/opt/bitnami/spark/apps
+    ports:
+      - "4040:4040"
   trino:
     image: trinodb/trino:480
     container_name: trino
