@@ -76,4 +76,61 @@ df_gold.show(truncate=False)
     .parquet(gold_path)
 )
 
+# 7. Read back gold
+df = spark.read.parquet("s3a://lakehouse/gold/daily_sales/")
+df.show(truncate=False)
+df.printSchema()
+
+# 8. Write partitioned gold data
+print("=== GENERATING PARTITIONED GOLD DATA ===")
+silver_df = spark.read.parquet("s3a://lakehouse/silver/orders/")
+
+gold_partitioned_df = (
+    silver_df
+    .withColumn("order_date", to_date(col("order_timestamp")))
+    .groupBy("order_date", "payment_method")
+    .sum("gross_amount")
+    .withColumnRenamed("sum(gross_amount)", "total_revenue")
+)
+
+(
+    gold_partitioned_df.write
+    .mode("overwrite")
+    .partitionBy("order_date")
+    .parquet("s3a://lakehouse/gold/daily_sales_partitioned/")
+)
+
+# 9. Read back partitioned gold
+print("=== READING PARTITIONED GOLD DATA ===")
+df_partitioned = spark.read.parquet("s3a://lakehouse/gold/daily_sales_partitioned/")
+df_partitioned.show(truncate=False)
+df_partitioned.printSchema()
+
+# 10. Simulate small file problem
+print("=== SIMULATING SMALL FILE PROBLEM (repartition(20)) ===")
+small_df = spark.read.parquet("s3a://lakehouse/silver/orders/")
+
+(
+    small_df
+    .repartition(20)
+    .write
+    .mode("overwrite")
+    .parquet("s3a://lakehouse/silver/orders_many_small_files/")
+)
+
+# 11. Coalesce & Sort
+print("=== CLUSTERING & COALESCING ===")
+clustered_df = (
+    spark.read.parquet("s3a://lakehouse/silver/orders/")
+    .sort("payment_method", "order_timestamp")
+)
+
+(
+    clustered_df
+    .coalesce(2)
+    .write
+    .mode("overwrite")
+    .parquet("s3a://lakehouse/silver/orders_clustered/")
+)
+
 spark.stop()
