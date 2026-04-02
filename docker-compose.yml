@@ -141,7 +141,46 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
 
+  postgres:
+    image: postgres:15
+    container_name: de_postgres
+    restart: unless-stopped
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: de_user
+      POSTGRES_PASSWORD: de_password
+      POSTGRES_DB: de_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - app_pg_data:/var/lib/postgresql/data
+
+  connect:
+    image: debezium/connect:2.4
+    container_name: de_connect
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - postgres
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: connect-cluster
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONFIG_STORAGE_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      OFFSET_STORAGE_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      OFFSET_STORAGE_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+
 volumes:
   metastore_db_data:
   minio_data:
   kafka_data:
+  app_pg_data:
