@@ -1,0 +1,7 @@
+order_id,customer_id,quantity,unit_price,order_status
+1,101,5,150.0,created
+2,102,1,900.0,paid
+3,,10,120.0,shipped
+4,104,25,50.0,delivered
+5,105,5,1500.0,cancelled
+1,106,3,10.0,refunded
