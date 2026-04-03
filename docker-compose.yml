@@ -179,8 +179,88 @@ services:
       OFFSET_STORAGE_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
       OFFSET_STORAGE_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
 
+  airflow-db:
+    image: postgres:15
+    container_name: de_airflow_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5434:5432"
+    volumes:
+      - airflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    image: apache/airflow:2.8.0
+    container_name: de_airflow_init
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
+      AIRFLOW_UID: "0"
+    command: >
+      bash -c "
+      airflow db init &&
+      airflow users create --username airflow --firstname Admin --lastname User --role Admin --email admin@localhost --password airflow 2>/dev/null || true &&
+      echo 'Airflow DB initialized.'
+      "
+    user: "root"
+
+  airflow-webserver:
+    image: apache/airflow:2.8.0
+    container_name: de_airflow_webserver
+    restart: unless-stopped
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_UID: "0"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    command: webserver
+    user: "root"
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.0
+    container_name: de_airflow_scheduler
+    restart: unless-stopped
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW_UID: "0"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    command: scheduler
+    user: "root"
+
 volumes:
   metastore_db_data:
   minio_data:
   kafka_data:
   app_pg_data:
+  airflow_db_data:
