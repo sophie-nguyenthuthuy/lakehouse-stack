@@ -1,0 +1,11 @@
+source:
+  type: airflow
+  config:
+    host_port: localhost:5434
+    database: airflow
+    username: airflow
+    password: airflow
+sink:
+  type: datahub-rest
+  config:
+    server: http://localhost:8080

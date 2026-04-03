@@ -233,7 +233,7 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW_UID: "0"
     ports:
-      - "8080:8080"
+      - "8085:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
     command: webserver
