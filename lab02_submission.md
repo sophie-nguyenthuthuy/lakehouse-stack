@@ -1,8 +1,17 @@
 # Bài nộp Lab 02 - SQL Fundamentals đến Advanced
 
 ## Đáp án truy vấn (File đính kèm)
-Mã lệnh đầy đủ đã được lưu tại file `lab02_queries.sql` nằm trong môi trường thực hành.
-Để thiết lập Database, em đã tự định nghĩa và chèn dữ liệu mẫu cho 3 bảng: `customers` (Khách hàng), `products` (Sản phẩm) và `orders` (Giao dịch).
+Toàn bộ 25 bài SQL challenge được tổ chức theo đúng 5 nhóm của handout và lưu tại `lab02_queries.sql`:
+
+| Nhóm | Chủ đề | Bài |
+|------|--------|-----|
+| 1 | SELECT / WHERE / ORDER BY | Bài 1–5 |
+| 2 | JOIN (INNER/LEFT/RIGHT/FULL + 3-way) | Bài 6–10 |
+| 3 | SUBQUERY / CTE (bao gồm CTE đệ quy) | Bài 11–15 |
+| 4 | WINDOW FUNCTIONS (running total, ROW_NUMBER, RANK, Top-N) | Bài 16–20 |
+| 5 | OPTIMIZATION (EXPLAIN, INDEX, tránh SELECT *) | Bài 21–25 |
+
+Để thiết lập Database, em đã tự định nghĩa và chèn dữ liệu mẫu cho 3 bảng: `customers` (Khách hàng, 5 dòng — có 1 khách chưa mua để minh hoạ LEFT JOIN), `products` (5 dòng) và `orders` (8 dòng).
 
 ## Hình ảnh mô phỏng kết quả truy vấn tiêu biểu
 (Được chạy trực tiếp từ PostgreSQL Container bằng Docker Exec)

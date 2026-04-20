@@ -25,6 +25,8 @@ Dựa vào liên kết kết nối Datasource về DB Staging Data Mart ở ph�
 
 ![Metabase BI Executive Dashboard](/Users/Thuy/.gemini/antigravity/brain/d4f02715-dc83-405c-a349-a3029147afc5/metabase_dashboard_1775216208995.png)
 
+**Hạ tầng Metabase** đã được bổ sung vào `docker-compose.yml` (service `metabase`, image `metabase/metabase:v0.50.17`, port `3000:3000`). Sau `docker compose up -d metabase`, truy cập `http://localhost:3000`, kết nối tới Postgres (`host=postgres`, `db=de_db`, `user=de_user`) để truy vấn schema `lab06_dw`. Ba câu SQL dùng cho Metabase questions được lưu tại `lab06_metabase_questions.sql` để dễ tái lập.
+
 ## 3. Trả lời câu hỏi lý thuyết Lab 06
 
 **Hỏi: Khi nào chọn ETL? Khi nào chọn ELT?**

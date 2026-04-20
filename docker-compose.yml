@@ -258,9 +258,25 @@ services:
     command: scheduler
     user: "root"
 
+  metabase:
+    image: metabase/metabase:v0.50.17
+    container_name: de_metabase
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE: h2
+      MB_DB_FILE: /metabase.db/metabase.db
+      JAVA_TIMEZONE: Asia/Ho_Chi_Minh
+    volumes:
+      - metabase_data:/metabase.db
+
 volumes:
   metastore_db_data:
   minio_data:
   kafka_data:
   app_pg_data:
   airflow_db_data:
+  metabase_data:
