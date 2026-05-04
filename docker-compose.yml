@@ -198,7 +198,8 @@ services:
       retries: 10
 
   airflow-init:
-    image: apache/airflow:2.8.0
+    build: ./airflow
+    image: bootcamp/airflow:2.8.0-datahub
     container_name: de_airflow_init
     depends_on:
       airflow-db:
@@ -209,6 +210,7 @@ services:
       _AIRFLOW_WWW_USER_USERNAME: airflow
       _AIRFLOW_WWW_USER_PASSWORD: airflow
       AIRFLOW_UID: "0"
+      AIRFLOW_CONN_DATAHUB_REST_DEFAULT: '{"conn_type": "datahub_rest", "host": "http://host.docker.internal:8080"}'
     command: >
       bash -c "
       airflow db init &&
@@ -216,9 +218,12 @@ services:
       echo 'Airflow DB initialized.'
       "
     user: "root"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   airflow-webserver:
-    image: apache/airflow:2.8.0
+    build: ./airflow
+    image: bootcamp/airflow:2.8.0-datahub
     container_name: de_airflow_webserver
     restart: unless-stopped
     depends_on:
@@ -232,15 +237,24 @@ services:
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW_UID: "0"
+      AIRFLOW__DATAHUB__CONN_ID: datahub_rest_default
+      AIRFLOW__DATAHUB__ENABLED: "true"
+      AIRFLOW__DATAHUB__CAPTURE_OWNERSHIP_INFO: "true"
+      AIRFLOW__DATAHUB__CAPTURE_TAGS_INFO: "true"
+      AIRFLOW__DATAHUB__CAPTURE_EXECUTIONS: "true"
+      AIRFLOW_CONN_DATAHUB_REST_DEFAULT: '{"conn_type": "datahub_rest", "host": "http://host.docker.internal:8080"}'
     ports:
       - "8085:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
     command: webserver
     user: "root"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   airflow-scheduler:
-    image: apache/airflow:2.8.0
+    build: ./airflow
+    image: bootcamp/airflow:2.8.0-datahub
     container_name: de_airflow_scheduler
     restart: unless-stopped
     depends_on:
@@ -253,10 +267,18 @@ services:
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW_UID: "0"
+      AIRFLOW__DATAHUB__CONN_ID: datahub_rest_default
+      AIRFLOW__DATAHUB__ENABLED: "true"
+      AIRFLOW__DATAHUB__CAPTURE_OWNERSHIP_INFO: "true"
+      AIRFLOW__DATAHUB__CAPTURE_TAGS_INFO: "true"
+      AIRFLOW__DATAHUB__CAPTURE_EXECUTIONS: "true"
+      AIRFLOW_CONN_DATAHUB_REST_DEFAULT: '{"conn_type": "datahub_rest", "host": "http://host.docker.internal:8080"}'
     volumes:
       - ./airflow/dags:/opt/airflow/dags
     command: scheduler
     user: "root"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   metabase:
     image: metabase/metabase:v0.50.17

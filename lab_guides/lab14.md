@@ -35,23 +35,33 @@ python3 ge_validate.py
 Mong đợi: `success: True/False` cùng danh sách expectation pass/fail. Nếu `orders.csv` chứa dòng bẩn cố ý → ít nhất 1 rule fail.
 
 ## Phần B — Deequ-style metrics trên Spark
-Deequ full runtime cần Scala; ở lab này ta discuss metric và mô phỏng trong PySpark:
+Deequ full runtime cần Scala; ở lab này ta mô phỏng 4 metric families trên PySpark.
 
-```python
-from pyspark.sql import SparkSession, functions as F
-spark = SparkSession.builder.appName("dq-lab").getOrCreate()
-df = spark.read.option("header", True).csv("orders.csv")
+File: [`spark/apps/dq_metrics.py`](../spark/apps/dq_metrics.py) — đọc `s3a://lakehouse/silver/orders/` (đã ghi từ Lab 08) và in:
 
-# completeness
-df.selectExpr("avg(case when order_id is not null then 1.0 else 0.0 end) as completeness_order_id").show()
-# uniqueness
-df.select(F.count("*").alias("rows"),
-          F.countDistinct("order_id").alias("distinct_order_id")).show()
-# distribution
-df.select(F.min("quantity"), F.max("quantity"), F.avg("quantity")).show()
-# size
-print("row_count:", df.count())
+1. **Completeness** — tỉ lệ non-null cho 6 cột.
+2. **Uniqueness** — `rows`, `distinct_order_id`, `uniqueness_ratio` (dupes nếu < 1.0).
+3. **Distribution** (numeric) — min/max/avg/stddev/p50/p95 cho `quantity` + `unit_price`.
+4. **Categorical distribution** — value counts cho `order_status` và `payment_method`.
+5. **Size** — tổng row count (so sánh với baseline để detect anomaly).
+
+Chạy:
+```bash
+docker exec -u root -i spark python3 /opt/bitnami/spark/apps/dq_metrics.py
 ```
+> Note: `-u root` cần thiết vì user mặc định trong container không có `HOME` ghi được — Ivy resolver cần ghi vào `~/.ivy2/`.
+hoặc (nếu muốn pass s3a configs ngoài app):
+```bash
+docker exec -u root spark bash -c \
+  "spark-submit --packages org.apache.hadoop:hadoop-aws:3.3.4 \
+                --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+                --conf spark.hadoop.fs.s3a.access.key=minio \
+                --conf spark.hadoop.fs.s3a.secret.key=minio12345 \
+                --conf spark.hadoop.fs.s3a.path.style.access=true \
+                /opt/bitnami/spark/apps/dq_metrics.py"
+```
+
+Mong đợi: 6 banner sections in liên tiếp, mỗi cái một bảng PySpark `.show()`.
 
 ## Phần C — Airflow gate (design)
 DAG khung:
