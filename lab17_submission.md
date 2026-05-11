@@ -1,5 +1,15 @@
 # Bài nộp Lab 17 — Cloud Integration: From Local Stack to AWS
 
+## Lab Artifacts
+
+| File | Mô tả |
+|------|-------|
+| [`lab17/s3_migration_sim.py`](lab17/s3_migration_sim.py) | Demo: Move Data to S3 — simulation với moto (mock AWS), Bronze/Silver/Gold upload + partition verify |
+| [`lab17/athena_queries.sql`](lab17/athena_queries.sql) | Demo: Query via Athena — CREATE EXTERNAL TABLE DDL + sample SQL queries over S3 |
+| [`lab17/homework_cloud_architecture.md`](lab17/homework_cloud_architecture.md) | Homework: Capstone AWS architecture diagram, cost estimate, security controls |
+
+---
+
 ## 1. Mapping Local Stack -> AWS
 Dưới đây là bảng chuyển đổi (mapping) các dịch vụ thuộc kiến trúc Lakehouse xây tại Local sang Amazon Web Services (AWS) tương ứng:
 
@@ -52,3 +62,104 @@ Nó chịu trách nhiệm là bộ não (Centralized Store) nắm siêu dữ li�
 
 **(3) Anti-pattern nào nguy hiểm nhất và vì sao?**
 "Scale compute cùng với Scale Storage cứng nhắc" - ở một local self hosted RDBMS, kho chứa dữ liệu thường dính với sức mạnh bộ vi xử lý CPU khiến cấu hình máy rất to nhưng lãng phí, và nó thường online 24/7. Ở Cloud, nếu đem nguyên tư duy này thiết lập trên máy chủ ảo (EC2 / RDS kích cỡ bự 24/7) bỏ xó thì cực kì tốn tiền thay vì tận dụng lợi ích lớn nhất của công nghệ Serverless và Decoupled (Tách biệt tính toán / Lưu trữ pay-as-you-go). Lúc phân tích thì hãy xoay Node; không phân tích thì dữ liệu S3 tĩnh nằm đó không tốn tiền Compute!
+
+---
+
+## 6. Demo: Move Data to S3 — Simulation Output
+
+Script: [`lab17/s3_migration_sim.py`](lab17/s3_migration_sim.py)  
+Sử dụng **moto** (mock AWS) — không cần credentials thật, chạy local hoàn toàn.
+
+```text
+=================================================================
+  Demo: Move Data to S3 — Bronze / Silver / Gold Migration
+=================================================================
+
+[1] Created bucket: s3://company-lakehouse/
+
+[2] Uploading Bronze (raw data, no partition):
+  uploaded s3://company-lakehouse/bronze/data.parquet  (5 rows)
+
+[3] Uploading Silver (cleaned Parquet, partitioned by date):
+  uploaded s3://company-lakehouse/silver/date=2026-04-01/data.parquet  (2 rows)
+  uploaded s3://company-lakehouse/silver/date=2026-04-02/data.parquet  (2 rows)
+
+[4] Uploading Gold (aggregated, partitioned by date):
+  uploaded s3://company-lakehouse/gold/date=2026-04-01/data.parquet  (1 rows)
+  uploaded s3://company-lakehouse/gold/date=2026-04-02/data.parquet  (1 rows)
+
+[5] All objects in bucket:
+Key                                                         Size
+-----------------------------------------------------------------
+  bronze/data.parquet                                       4251 B
+  gold/date=2026-04-01/data.parquet                         2941 B
+  gold/date=2026-04-02/data.parquet                         2941 B
+  silver/date=2026-04-01/data.parquet                       5271 B
+  silver/date=2026-04-02/data.parquet                       5264 B
+
+Total objects: 5
+
+[6] Simulate Athena scan — read silver/date=2026-04-02/data.parquet:
+ order_id       date  total_amount order_status
+        3 2026-04-02         120.0    COMPLETED
+        5 2026-04-02         136.5    COMPLETED
+
+[✓] Migration simulation complete.
+    In production: replace @mock_aws with real boto3 + IAM role.
+```
+
+**Nhận xét partition pruning:**  
+Silver layer được chia thành `date=2026-04-01/` và `date=2026-04-02/` — khi Athena query `WHERE date = '2026-04-02'`, chỉ scan đúng file đó (~5KB) thay vì toàn bộ Silver layer. Đây là kỹ thuật tiết kiệm chi phí Athena quan trọng nhất.
+
+---
+
+## 7. Demo: Query via Athena (Conceptual)
+
+SQL file: [`lab17/athena_queries.sql`](lab17/athena_queries.sql)
+
+**Bước 1 — Tạo External Table (Hive-style trên S3):**
+```sql
+CREATE EXTERNAL TABLE IF NOT EXISTS lakehouse.silver_orders (
+    order_id BIGINT, order_timestamp TIMESTAMP,
+    quantity INT, unit_price DOUBLE,
+    order_status STRING, payment_method STRING, total_amount DOUBLE
+)
+PARTITIONED BY (date STRING)
+STORED AS PARQUET
+LOCATION 's3://company-lakehouse/silver/'
+TBLPROPERTIES ('parquet.compression' = 'SNAPPY');
+
+MSCK REPAIR TABLE lakehouse.silver_orders;
+```
+
+**Bước 2 — Query với partition filter (cost-efficient):**
+```sql
+SELECT order_id, order_timestamp, total_amount, order_status
+FROM   lakehouse.silver_orders
+WHERE  date = '2026-04-02'
+ORDER  BY total_amount DESC;
+```
+
+**Bước 3 — CTAS (Create Table As Select) để persist Gold result:**
+```sql
+CREATE TABLE lakehouse.gold_payment_summary
+WITH (format = 'PARQUET', external_location = 's3://company-lakehouse/gold/payment_summary/')
+AS
+SELECT payment_method, COUNT(*) AS order_count, ROUND(SUM(total_amount), 2) AS total_revenue
+FROM   lakehouse.silver_orders
+WHERE  order_status = 'COMPLETED'
+GROUP  BY payment_method;
+```
+
+---
+
+## 8. Homework — Cloud Architecture, Cost & Security
+
+Xem chi tiết tại: [`lab17/homework_cloud_architecture.md`](lab17/homework_cloud_architecture.md)
+
+**Tóm tắt:**
+- **Architecture:** S3 (Bronze/Silver/Gold) → Glue Catalog → Athena/EMR → QuickSight
+- **Monthly cost estimate:** ~$25–30/month cho small-medium dataset (100 GB/month ingested)
+  - Storage: ~$10.60 | Glue ETL: ~$13.20 | Athena: ~$0.45
+- **Top 3 cost levers:** Spot Instances on EMR, S3 Lifecycle → Glacier, partition pruning
+- **Security controls:** IAM least-privilege, SSE-KMS encryption, Lake Formation row/column access, CloudTrail audit, AWS Budgets alerts
