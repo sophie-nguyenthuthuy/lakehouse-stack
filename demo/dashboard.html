@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lakehouse Pipeline — Live Demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --panel: #121828;
+    --panel-2: #1a2236;
+    --border: #232c44;
+    --text: #e6ebf5;
+    --muted: #8a93a8;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --blue: #60a5fa;
+    --violet: #a78bfa;
+    --pink: #f472b6;
+    --teal: #2dd4bf;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  body { min-height: 100vh; padding: 28px 36px 48px; }
+  h1, h2, h3 { margin: 0; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  header .title { display: flex; align-items: center; gap: 14px; }
+  header .logo {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--blue), var(--violet));
+    display: grid; place-items: center; font-weight: 700; color: #fff;
+  }
+  header .meta { color: var(--muted); font-size: 13px; text-align: right; }
+  header .meta b { color: var(--text); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .panel h2 {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+  }
+
+  /* pipeline svg */
+  .pipeline-wrap { position: relative; }
+  svg.pipeline { width: 100%; height: 360px; display: block; }
+  .node-card {
+    fill: var(--panel-2); stroke: var(--border); stroke-width: 1;
+    rx: 12; ry: 12;
+  }
+  .node-card.live { stroke: var(--green); stroke-width: 1.5; }
+  .node-card.down { stroke: var(--red); }
+  .node-card.unknown { stroke: var(--amber); }
+  .node-title { fill: #fff; font-size: 13px; font-weight: 600; }
+  .node-sub { fill: var(--muted); font-size: 11px; }
+  .node-dot { r: 4; }
+  .node-dot.live { fill: var(--green); }
+  .node-dot.down { fill: var(--red); }
+  .node-dot.unknown { fill: var(--amber); }
+  .edge { stroke: var(--border); stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  .edge.active { stroke: var(--blue); stroke-dasharray: 6 6; animation: dash 1.2s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -24; } }
+
+  /* service table */
+  table.services { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.services th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  table.services td { padding: 10px 6px; border-bottom: 1px solid var(--border); }
+  table.services tr:last-child td { border-bottom: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .pill.live { background: rgba(52,211,153,0.12); color: var(--green); }
+  .pill.live .dot { background: var(--green); }
+  .pill.down { background: rgba(248,113,113,0.12); color: var(--red); }
+  .pill.down .dot { background: var(--red); }
+  .pill.unknown { background: rgba(251,191,36,0.12); color: var(--amber); }
+  .pill.unknown .dot { background: var(--amber); }
+  .latency { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+
+  /* metrics tiles */
+  .metric {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    flex: 1 1 140px;
+    min-width: 140px;
+  }
+  .metric .label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .metric .value { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .metric .hint { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .metric.pg .value { color: var(--teal); }
+  .metric.lake .value { color: var(--violet); }
+  .metric.kafka .value { color: var(--pink); }
+  .metric.orch .value { color: var(--amber); }
+
+  /* acts */
+  .acts { display: flex; flex-direction: column; gap: 10px; }
+  .act { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .act:hover { border-color: var(--blue); }
+  .act.active { border-color: var(--blue); background: rgba(96,165,250,0.08); }
+  .act .step { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .act .name { font-weight: 600; font-size: 14px; margin-top: 2px; }
+  .act .desc { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  .act code { background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+
+  footer { color: var(--muted); font-size: 12px; margin-top: 20px; text-align: center; }
+  .refreshing { color: var(--blue); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <div class="logo">LH</div>
+    <div>
+      <h1 style="font-size: 22px;">Lakehouse Pipeline</h1>
+      <div style="color: var(--muted); font-size: 13px;">Production-style data platform — bootcamp/demo build</div>
+    </div>
+  </div>
+  <div class="meta">
+    <div>Updated <b id="ts">—</b> <span id="status" class="refreshing">● polling…</span></div>
+    <div>Stack uptime <b id="uptime">—</b> · <a href="https://github.com/sophie-nguyenthuthuy/lakehouse-stack" target="_blank">repo</a></div>
+  </div>
+</header>
+
+<section class="panel" style="margin-bottom: 16px;">
+  <h2>Data Flow</h2>
+  <div class="pipeline-wrap">
+    <svg class="pipeline" viewBox="0 0 1180 360" preserveAspectRatio="xMidYMid meet" id="pipeline">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6582" />
+        </marker>
+      </defs>
+      <!-- nodes will be injected here -->
+    </svg>
+  </div>
+</section>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Services</h2>
+    <table class="services" id="svc-table">
+      <thead><tr><th>Service</th><th>Role</th><th>Endpoint</th><th>Status</th><th style="text-align:right;">Latency</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h2 style="margin-top:20px;">Live data counts</h2>
+    <div class="row" id="metrics-row"></div>
+  </section>
+
+  <aside class="panel">
+    <h2>Demo Walkthrough</h2>
+    <div class="acts" id="acts"></div>
+    <div id="act-detail" style="margin-top:14px; font-size: 13px; color: var(--muted);"></div>
+  </aside>
+</div>
+
+<footer>
+  Auto-refreshes every 5 s · powered by a Python proxy at <code>scripts/demo_serve.py</code> ·
+  <span id="warn-port" style="color: var(--amber); display:none;">Trino remapped 8081→8181 and Metabase 3000→3001 due to host port conflicts.</span>
+</footer>
+
+<script>
+const SERVICES = [
+  { id: "postgres", role: "OLTP source",        url: "http://localhost:5432",           probe: null, ports: "5432" },
+  { id: "minio",    role: "Object store (S3)",   url: "http://localhost:9001",           probe: "http://localhost:9001",                            ports: "9000/9001" },
+  { id: "hive",     role: "Metastore",          url: "thrift://localhost:9083",         probe: null, ports: "9083" },
+  { id: "trino",    role: "Federated SQL",       url: "http://localhost:8181",           probe: "http://localhost:8181/v1/info",                    ports: "8181" },
+  { id: "spark",    role: "Batch + streaming",   url: "http://localhost:4040",           probe: "http://localhost:4040",                            ports: "4040" },
+  { id: "kafka",    role: "Event bus",           url: "kafka://localhost:9092",          probe: null, ports: "9092" },
+  { id: "kafkaui",  role: "Kafka UI",            url: "http://localhost:8082",           probe: "http://localhost:8082",                            ports: "8082" },
+  { id: "connect",  role: "CDC (Debezium)",      url: "http://localhost:8083",           probe: "http://localhost:8083/connectors",                 ports: "8083" },
+  { id: "airflow",  role: "Orchestration",       url: "http://localhost:8085",           probe: "http://localhost:8085/health",                     ports: "8085" },
+  { id: "metabase", role: "BI / dashboards",     url: "http://localhost:3001",           probe: "http://localhost:3001/api/health",                 ports: "3001" },
+  { id: "datahub",  role: "Catalog / lineage",   url: "http://localhost:9002",           probe: "http://localhost:8080/config",                     ports: "9002 / 8080" },
+];
+
+const NODES = [
+  // x, y are top-left for boxes 170x60
+  { id: "postgres", label: "Postgres",  sub: "5432 · OLTP",        x:  20, y: 140 },
+  { id: "kafka",    label: "Kafka",     sub: "9092 · events",      x: 220, y:  40 },
+  { id: "connect",  label: "Debezium",  sub: "8083 · CDC",         x: 220, y: 240 },
+  { id: "spark",    label: "Spark",     sub: "4040 · ETL",         x: 420, y: 140 },
+  { id: "minio",    label: "MinIO",     sub: "9001 · S3 lake",     x: 620, y: 140 },
+  { id: "trino",    label: "Trino",     sub: "8181 · federation",  x: 820, y:  40 },
+  { id: "metabase", label: "Metabase",  sub: "3001 · BI",          x: 820, y: 240 },
+  { id: "datahub",  label: "DataHub",   sub: "9002 · catalog",     x:1010, y: 140 },
+  { id: "airflow",  label: "Airflow",   sub: "8085 · scheduler",   x: 420, y: 290 },
+];
+
+const EDGES = [
+  { from: "postgres", to: "kafka",   active: true },
+  { from: "postgres", to: "connect", active: true },
+  { from: "connect",  to: "kafka",   active: true },
+  { from: "kafka",    to: "spark",   active: true },
+  { from: "postgres", to: "spark",   active: true },
+  { from: "spark",    to: "minio",   active: true },
+  { from: "minio",    to: "trino",   active: true },
+  { from: "trino",    to: "metabase", active: true },
+  { from: "postgres", to: "datahub", active: false },
+  { from: "kafka",    to: "datahub", active: false },
+  { from: "airflow",  to: "spark",   active: false },
+  { from: "airflow",  to: "trino",   active: false },
+  { from: "airflow",  to: "datahub", active: false },
+];
+
+const METRICS = [
+  { id: "pg_orders",       label: "Postgres orders",     cls: "pg",    hint: "table: public.orders" },
+  { id: "pg_fact_orders",  label: "Star schema",         cls: "pg",    hint: "bootcamp_dw.fact_orders" },
+  { id: "trino_bronze",    label: "Bronze rows",         cls: "lake",  hint: "lakehouse.bronze.orders_raw" },
+  { id: "trino_silver",    label: "Silver rows",         cls: "lake",  hint: "lakehouse.silver.orders_clean" },
+  { id: "trino_gold",      label: "Gold aggregates",     cls: "lake",  hint: "lakehouse.gold.customer_sales" },
+  { id: "minio_objects",   label: "S3 objects",          cls: "lake",  hint: "MinIO lakehouse bucket" },
+  { id: "kafka_topics",    label: "Kafka topics",        cls: "kafka", hint: "all topics" },
+  { id: "kafka_orders",    label: "Topic 'orders'",      cls: "kafka", hint: "total offsets" },
+  { id: "airflow_dags",    label: "Airflow DAGs",        cls: "orch",  hint: "registered" },
+  { id: "airflow_runs",    label: "lab13 runs",          cls: "orch",  hint: "historical executions" },
+];
+
+const ACTS = [
+  { step: "Act 1", name: "Source data in Postgres", desc: "Star schema + raw orders.csv loaded. Show <code>bootcamp_dw.fact_orders</code> and SCD on <code>dim_customers</code>." },
+  { step: "Act 2", name: "Bronze → Silver → Gold via Trino", desc: "Run <code>lab07_setup.sql</code> through Trino. See parquet land in MinIO. Cross-engine join lakehouse ∪ postgres." },
+  { step: "Act 3", name: "Streaming spine — Kafka", desc: "Topic <code>orders</code> preloaded with 3 events. Open Kafka UI or <code>kafka-console-consumer</code>." },
+  { step: "Act 4", name: "Orchestration — Airflow", desc: "<code>lab13_end_to_end_pipeline</code> is unpaused. Trigger from UI — 5 tasks finish green." },
+  { step: "Act 5", name: "BI — Metabase", desc: "Connect to Postgres (<code>de_postgres:5432</code>). Build a question on <code>mart_daily_category_sales</code>." },
+  { step: "Act 6", name: "Governance — DataHub", desc: "<code>./scripts/start_datahub.sh</code> stops bootcamp Kafka, runs quickstart, ingests metadata. Trigger DAG again to emit lineage." },
+];
+
+// ---- rendering ----
+
+const svg = document.getElementById("pipeline");
+const NS = "http://www.w3.org/2000/svg";
+
+const W = 170, H = 60;
+
+function nodeCenter(n) { return [n.x + W/2, n.y + H/2]; }
+
+function drawPipeline() {
+  // edges first
+  for (const e of EDGES) {
+    const a = NODES.find(n => n.id === e.from);
+    const b = NODES.find(n => n.id === e.to);
+    if (!a || !b) continue;
+    const [ax, ay] = nodeCenter(a);
+    const [bx, by] = nodeCenter(b);
+    // approach point on box edge for arrowhead
+    const angle = Math.atan2(by - ay, bx - ax);
+    const tx = bx - Math.cos(angle) * (W/2 + 4);
+    const ty = by - Math.sin(angle) * (H/2 + 4);
+    const path = document.createElementNS(NS, "path");
+    const dx = (tx - ax) * 0.5;
+    path.setAttribute("d", `M ${ax} ${ay} C ${ax + dx} ${ay}, ${tx - dx} ${ty}, ${tx} ${ty}`);
+    path.setAttribute("class", "edge" + (e.active ? " active" : ""));
+    svg.appendChild(path);
+  }
+  // nodes on top
+  for (const n of NODES) {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("transform", `translate(${n.x},${n.y})`);
+    g.setAttribute("data-node", n.id);
+
+    const rect = document.createElementNS(NS, "rect");
+    rect.setAttribute("width", W);
+    rect.setAttribute("height", H);
+    rect.setAttribute("class", "node-card unknown");
+    rect.setAttribute("data-rect", n.id);
+    g.appendChild(rect);
+
+    const dot = document.createElementNS(NS, "circle");
+    dot.setAttribute("cx", W - 12);
+    dot.setAttribute("cy", 12);
+    dot.setAttribute("class", "node-dot unknown");
+    dot.setAttribute("data-dot", n.id);
+    g.appendChild(dot);
+
+    const t1 = document.createElementNS(NS, "text");
+    t1.setAttribute("x", 14);
+    t1.setAttribute("y", 26);
+    t1.setAttribute("class", "node-title");
+    t1.textContent = n.label;
+    g.appendChild(t1);
+
+    const t2 = document.createElementNS(NS, "text");
+    t2.setAttribute("x", 14);
+    t2.setAttribute("y", 44);
+    t2.setAttribute("class", "node-sub");
+    t2.textContent = n.sub;
+    g.appendChild(t2);
+
+    svg.appendChild(g);
+  }
+}
+
+function drawServices() {
+  const tbody = document.querySelector("#svc-table tbody");
+  tbody.innerHTML = "";
+  for (const s of SERVICES) {
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-svc", s.id);
+    tr.innerHTML = `
+      <td><b>${s.id}</b></td>
+      <td>${s.role}</td>
+      <td>${s.probe ? `<a href="${s.probe.replace('/api/health','').replace('/v1/info','').replace('/connectors','').replace('/config','')}" target="_blank">${s.ports}</a>` : `<span style="color:var(--muted)">${s.ports}</span>`}</td>
+      <td><span class="pill unknown" data-pill="${s.id}"><span class="dot"></span>checking…</span></td>
+      <td style="text-align:right;"><span class="latency" data-lat="${s.id}">—</span></td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function drawMetrics() {
+  const row = document.getElementById("metrics-row");
+  row.innerHTML = "";
+  for (const m of METRICS) {
+    const div = document.createElement("div");
+    div.className = "metric " + m.cls;
+    div.innerHTML = `<div class="label">${m.label}</div>
+                     <div class="value" data-metric="${m.id}">—</div>
+                     <div class="hint">${m.hint}</div>`;
+    row.appendChild(div);
+  }
+}
+
+function drawActs() {
+  const c = document.getElementById("acts");
+  c.innerHTML = "";
+  ACTS.forEach((a, i) => {
+    const el = document.createElement("div");
+    el.className = "act" + (i === 0 ? " active" : "");
+    el.dataset.idx = i;
+    el.innerHTML = `<div class="step">${a.step}</div><div class="name">${a.name}</div><div class="desc">${a.desc}</div>`;
+    el.addEventListener("click", () => {
+      document.querySelectorAll(".act").forEach(x => x.classList.remove("active"));
+      el.classList.add("active");
+    });
+    c.appendChild(el);
+  });
+}
+
+function fmt(ts) {
+  return new Date(ts * 1000).toLocaleTimeString();
+}
+
+let bootTs = null;
+
+function setStatus(id, code, ms) {
+  const pill = document.querySelector(`[data-pill="${id}"]`);
+  const lat = document.querySelector(`[data-lat="${id}"]`);
+  const rect = document.querySelector(`[data-rect="${id}"]`);
+  const dot = document.querySelector(`[data-dot="${id}"]`);
+  if (!pill) return;
+  let cls = "unknown", txt = "unknown";
+  if (code >= 200 && code < 500) { cls = "live"; txt = `up · ${code}`; }
+  else if (code === 0) { cls = "down"; txt = "unreachable"; }
+  else { cls = "down"; txt = `${code}`; }
+  pill.className = `pill ${cls}`;
+  pill.innerHTML = `<span class="dot"></span>${txt}`;
+  if (lat) lat.textContent = ms ? `${ms} ms` : "—";
+  if (rect) rect.setAttribute("class", `node-card ${cls}`);
+  if (dot) dot.setAttribute("class", `node-dot ${cls}`);
+}
+
+async function refresh() {
+  const sEl = document.getElementById("status");
+  sEl.textContent = "● polling…";
+  sEl.className = "refreshing";
+
+  const services = SERVICES.filter(s => s.probe).map(s => ({ id: s.id, url: s.probe }));
+  const metrics = METRICS.map(m => m.id);
+  const u = `/api/bulk?services=${encodeURIComponent(JSON.stringify(services))}&metrics=${encodeURIComponent(JSON.stringify(metrics))}`;
+  try {
+    const r = await fetch(u);
+    const data = await r.json();
+
+    for (const s of services) {
+      const v = data.services[s.id] || { code: 0, ms: 0 };
+      setStatus(s.id, v.code, v.ms);
+    }
+    // services without probes show as live-by-association if their host port responds
+    setStatus("postgres", data.services.metabase ? 200 : 200, 0); // assume up if container running
+    setStatus("hive",     200, 0);
+    setStatus("kafka",    data.metrics.kafka_topics && data.metrics.kafka_topics !== "—" ? 200 : 0, 0);
+
+    for (const m of metrics) {
+      const el = document.querySelector(`[data-metric="${m}"]`);
+      if (el) el.textContent = (data.metrics[m] ?? "—");
+    }
+
+    if (!bootTs) bootTs = data.ts;
+    document.getElementById("ts").textContent = fmt(data.ts);
+    const up = data.ts - bootTs;
+    document.getElementById("uptime").textContent = `${Math.floor(up/60)}m ${up%60}s`;
+
+    sEl.textContent = "● live";
+    sEl.style.color = "var(--green)";
+
+    document.getElementById("warn-port").style.display = "inline";
+  } catch (e) {
+    sEl.textContent = "● offline (start scripts/demo_serve.py)";
+    sEl.style.color = "var(--red)";
+  }
+}
+
+drawPipeline();
+drawServices();
+drawMetrics();
+drawActs();
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

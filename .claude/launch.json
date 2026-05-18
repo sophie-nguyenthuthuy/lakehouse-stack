@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lakehouse-demo",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["scripts/demo_serve.py"],
+      "port": 7777
+    }
+  ]
+}

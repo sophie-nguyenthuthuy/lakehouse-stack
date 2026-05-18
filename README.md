@@ -24,14 +24,14 @@ That's it. First boot pulls images (~5 min) and waits for healthchecks. After it
 | Hive Metastore DB   | 5435   | internal                               | 7 |
 | MinIO (S3)          | 9000   | http://localhost:9001 (`minio` / `minio12345`) | 7, 8, 9, 12 |
 | Hive Metastore      | 9083   | Thrift                                 | 7 |
-| Trino               | 8081   | http://localhost:8081                  | 7 |
+| Trino               | 8181   | http://localhost:8181                  | 7 |
 | Spark               | 4040   | `docker exec spark spark-submit …`     | 8, 9, 12, 14 |
 | Kafka broker        | 9092   | —                                      | 10, 11, 12 |
 | Kafka UI            | 8082   | http://localhost:8082                  | 10, 11, 12 |
 | Kafka Connect       | 8083   | http://localhost:8083                  | 11 |
 | Airflow webserver   | 8085   | http://localhost:8085 (`airflow` / `airflow`) | 13, 15 |
 | Airflow metadata DB | 5434   | internal                               | 15 |
-| Metabase            | 3000   | http://localhost:3000                  | 6 |
+| Metabase            | 3001   | http://localhost:3001                  | 6 |
 
 DataHub (Lab 15) runs as a **separate** stack — see [`lab_guides/lab15.md`](lab_guides/lab15.md). It conflicts on port 9092, so stop bootcamp Kafka before starting DataHub.
 
@@ -63,12 +63,12 @@ DataHub (Lab 15) runs as a **separate** stack — see [`lab_guides/lab15.md`](la
 
 ```bash
 docker compose ps           # all should be Up (healthy)
-curl -s -o /dev/null -w "trino=%{http_code}\n"   http://localhost:8081
+curl -s -o /dev/null -w "trino=%{http_code}\n"   http://localhost:8181/v1/info
 curl -s -o /dev/null -w "minio=%{http_code}\n"   http://localhost:9001
 curl -s -o /dev/null -w "airflow=%{http_code}\n" http://localhost:8085/health
 curl -s -o /dev/null -w "connect=%{http_code}\n" http://localhost:8083/connectors
 curl -s -o /dev/null -w "kafkaui=%{http_code}\n" http://localhost:8082
-curl -s -o /dev/null -w "metabase=%{http_code}\n" http://localhost:3000/api/health
+curl -s -o /dev/null -w "metabase=%{http_code}\n" http://localhost:3001/api/health
 ```
 
 All should return `200`.
